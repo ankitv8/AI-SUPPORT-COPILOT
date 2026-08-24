@@ -33,7 +33,7 @@ export const productDocs = {
       { step: 'Open /chat', detail: 'No account required. Meet AI Support Copilot.' },
       { step: 'Upload any file', detail: 'PDF, text, Markdown, JSON, CSV, or HTML in the sidebar (max 5 files, 5 MB each).' },
       { step: 'Ask a question', detail: 'Chat naturally — pick a suggested prompt or type your own. Answers stream with source chips.' },
-      { step: 'Check /usage', detail: 'See estimated OpenAI spend from your sessions — stored in IndexedDB.' },
+      { step: 'Check /usage', detail: 'See estimated provider usage from your sessions — stored in IndexedDB.' },
     ],
   },
 
@@ -48,7 +48,7 @@ export const productDocs = {
     ],
     limits: [
       '5 files per session · 5 MB each · PDF, text, MD, JSON, CSV, HTML',
-      '100K OpenAI tokens per device/network (server-enforced)',
+      '100K provider tokens per device/network (server-enforced)',
       'Documents in sessionStorage — not saved to any database',
     ],
   },
@@ -69,7 +69,7 @@ export const productDocs = {
       {
         method: 'POST',
         path: '/api/chat',
-        detail: 'Streams chat via SSE. Receives your question and uploaded file chunks. Enforces 100K token budget server-side (cookie + IP). Calls OpenAI for embeddings + chat.',
+        detail: 'Streams chat via SSE. Receives your question and uploaded file chunks. Enforces 100K token budget server-side (cookie + IP). Uses Hugging Face for embeddings and Groq for chat.',
       },
       {
         method: 'POST',
@@ -77,7 +77,7 @@ export const productDocs = {
         detail: 'Extracts text from a PDF upload. Stateless — file content is not stored on the server.',
       },
     ],
-    envNote: 'Server env: OPENAI_API_KEY (required), OPENAI_CHAT_MODEL, OPENAI_EMBEDDING_MODEL, USD_TO_INR.',
+    envNote: 'Server env: GROQ_API_KEY, GROQ_CHAT_MODEL, HF_TOKEN, HF_EMBEDDING_MODEL, USD_TO_INR.',
   },
 
   faq: [
@@ -96,7 +96,7 @@ export const productDocs = {
     },
     {
       question: 'Is my data stored on a server?',
-      answer: 'Upload text stays in sessionStorage. PDFs are parsed via a stateless API call and not persisted. Only OpenAI receives the question and retrieved chunks for each chat request.',
+      answer: 'Upload text stays in sessionStorage. PDFs are parsed via a stateless API call and not persisted. Hugging Face receives embedding text, while Groq receives the question and retrieved chunks for each chat request.',
     },
     {
       question: 'What happens when I hit the token limit?',

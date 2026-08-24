@@ -25,9 +25,9 @@ export default function ChatWelcome({
 
       {prompts.length > 0 && (
         <div className="mt-5 flex flex-wrap justify-center gap-2">
-          {prompts.map((item) => (
+          {prompts.map((item, index) => (
             <button
-              key={item.prompt}
+              key={`${item.prompt}-${index}`}
               type="button"
               disabled={disabled}
               onClick={() => onAsk(item.prompt)}

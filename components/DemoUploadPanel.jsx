@@ -89,7 +89,7 @@ export default function DemoUploadPanel() {
                     ? 'text-amber-600 dark:text-amber-400'
                     : 'text-zinc-700 dark:text-zinc-300'
               }`}
-              title="OpenAI tokens used in this browser"
+              title="Provider tokens used in this browser"
             >
               {formatCompactTokenCount(tokenUsed)} / {formatCompactTokenCount(tokenBudget)}
             </span>

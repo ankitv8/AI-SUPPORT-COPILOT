@@ -10,7 +10,7 @@ Upload any file and chat with AI about it — like ChatGPT, but every answer is 
 | **AI chat** | ChatGPT-style streaming chat grounded in your files |
 | **Hybrid RAG** | Vector + BM25 keyword search |
 | **Source citations** | Every answer links back to your uploaded file |
-| **Usage dashboard** | Estimated OpenAI cost at `/usage` — tracked locally |
+| **Usage dashboard** | Estimated provider usage at `/usage` — tracked locally |
 
 ## Routes
 
@@ -26,7 +26,7 @@ Upload any file and chat with AI about it — like ChatGPT, but every answer is 
 ```bash
 npm install
 cp .env.example .env.local
-# Set OPENAI_API_KEY in .env.local
+# Set GROQ_API_KEY and HF_TOKEN in .env.local
 npm run dev
 ```
 
@@ -35,22 +35,23 @@ Open **http://localhost:3010**
 ## Architecture
 
 - **Next.js** — landing, chat UI, usage dashboard, and API routes
-- **`POST /api/chat`** — SSE streaming; embeddings + chat via OpenAI
+- **`POST /api/chat`** — SSE streaming; Hugging Face embeddings + Groq chat
 - **`POST /api/demo/parse`** — stateless PDF text extraction
 - **Browser storage** — documents (`sessionStorage`), usage dashboard (`IndexedDB`)
 - **Server token budget** — 100K trial enforced per device/network (`data/guest-usage/`)
 
 ## Deploy
 
-Works on [Vercel](https://vercel.com) (or any Node host that runs Next.js). Set `OPENAI_API_KEY` in project environment variables. No database or separate API server required.
+Works on [Vercel](https://vercel.com) (or any Node host that runs Next.js). Set `GROQ_API_KEY` and `HF_TOKEN` in project environment variables. No database or separate API server required.
 
 ## Environment
 
 | Variable | Required | Description |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | Yes | OpenAI API key |
-| `OPENAI_CHAT_MODEL` | No | Default `gpt-4o-mini` |
-| `OPENAI_EMBEDDING_MODEL` | No | Default `text-embedding-3-small` |
+| `GROQ_API_KEY` | Yes | Groq API key |
+| `GROQ_CHAT_MODEL` | No | Default `openai/gpt-oss-120b` |
+| `HF_TOKEN` | Yes | Hugging Face token for embeddings |
+| `HF_EMBEDDING_MODEL` | No | Default `BAAI/bge-small-en-v1.5` |
 | `USD_TO_INR` | No | INR display in usage dashboard |
 
 ## License

@@ -7,28 +7,29 @@ import {
 } from '../lib/core/pricing.js'
 
 export const modelPricingMeta = {
-  title: 'OpenAI model pricing',
+  title: 'Provider model pricing',
   intro:
     'Published rates per model for 1M tokens: input, output, and combined total (input + output). USD and INR (₹) shown for each. Live usage is tracked in your Usage dashboard.',
   formula: 'Cost = (input tokens ÷ 1M × input rate) + (output tokens ÷ 1M × output rate). Total column = input + output at 1M each.',
 }
 
 export const envVarRows = [
-  { variable: 'OPENAI_API_KEY', default: '—', description: 'Required — OpenAI API authentication' },
-  { variable: 'OPENAI_CHAT_MODEL', default: 'gpt-4o-mini', description: 'Chat and planning' },
-  { variable: 'OPENAI_EMBEDDING_MODEL', default: 'text-embedding-3-small', description: 'Document & query embeddings' },
+  { variable: 'GROQ_API_KEY', default: '—', description: 'Required — Groq API authentication' },
+  { variable: 'GROQ_CHAT_MODEL', default: 'openai/gpt-oss-120b', description: 'Chat and planning' },
+  { variable: 'HF_TOKEN', default: '—', description: 'Required — Hugging Face API authentication' },
+  { variable: 'HF_EMBEDDING_MODEL', default: 'BAAI/bge-small-en-v1.5', description: 'Document & query embeddings' },
   { variable: 'USD_TO_INR', default: String(DEFAULT_USD_TO_INR), description: 'INR conversion in Usage dashboard' },
 ]
 
 export const endpointRows = [
-  { endpoint: 'embedding', model: 'OPENAI_EMBEDDING_MODEL', when: 'Per upload chunk + each chat query' },
-  { endpoint: 'chat_plan', model: 'OPENAI_CHAT_MODEL', when: 'Optional tool planning per question' },
-  { endpoint: 'chat_stream', model: 'OPENAI_CHAT_MODEL', when: 'Streamed answer (POST /api/chat)' },
+  { endpoint: 'embedding', model: 'HF_EMBEDDING_MODEL', when: 'Per upload chunk + each chat query' },
+  { endpoint: 'chat_plan', model: 'GROQ_CHAT_MODEL', when: 'Optional tool planning per question' },
+  { endpoint: 'chat_stream', model: 'GROQ_CHAT_MODEL', when: 'Streamed answer (POST /api/chat)' },
   { endpoint: 'pdf_parse', model: '—', when: 'POST /api/demo/parse — local PDF text extraction only' },
 ]
 
-const DEFAULT_CHAT = 'gpt-4o-mini'
-const DEFAULT_EMBED = 'text-embedding-3-small'
+const DEFAULT_CHAT = 'openai/gpt-oss-120b'
+const DEFAULT_EMBED = 'BAAI/bge-small-en-v1.5'
 
 function scenarioCost({ inputTokens, outputTokens, model }) {
   const { usd, inr } = calculateCost({ inputTokens, outputTokens, model })
@@ -62,28 +63,28 @@ export const usageScenarioRows = [
 
 export const modelCatalog = [
   {
-    model: 'gpt-4o-mini',
+    model: 'openai/gpt-oss-120b',
     type: 'Chat',
-    ...MODEL_PRICING['gpt-4o-mini'],
+    ...MODEL_PRICING['openai/gpt-oss-120b'],
     usedFor: 'Default chat model',
     recommended: true,
   },
   {
-    model: 'gpt-4.1-mini',
+    model: 'openai/gpt-oss-20b',
     type: 'Chat',
-    ...MODEL_PRICING['gpt-4.1-mini'],
+    ...MODEL_PRICING['openai/gpt-oss-20b'],
     usedFor: 'Higher-quality mini tier',
   },
   {
-    model: 'gpt-4.1-nano',
+    model: 'qwen/qwen3.6-27b',
     type: 'Chat',
-    ...MODEL_PRICING['gpt-4.1-nano'],
+    ...MODEL_PRICING['qwen/qwen3.6-27b'],
     usedFor: 'High-volume simple tasks',
   },
   {
-    model: 'gpt-5-mini',
+    model: 'openai/gpt-oss-20b',
     type: 'Chat',
-    ...MODEL_PRICING['gpt-5-mini'],
+    ...MODEL_PRICING['openai/gpt-oss-20b'],
     usedFor: 'Newer mini tier',
   },
   {
@@ -117,17 +118,11 @@ export const modelCatalog = [
     usedFor: 'Budget reasoning',
   },
   {
-    model: 'text-embedding-3-small',
+    model: 'BAAI/bge-small-en-v1.5',
     type: 'Embedding',
-    ...MODEL_PRICING['text-embedding-3-small'],
+    ...MODEL_PRICING['BAAI/bge-small-en-v1.5'],
     usedFor: 'Default embeddings',
     recommended: true,
-  },
-  {
-    model: 'text-embedding-3-large',
-    type: 'Embedding',
-    ...MODEL_PRICING['text-embedding-3-large'],
-    usedFor: 'Higher-accuracy embeddings',
   },
 ]
 

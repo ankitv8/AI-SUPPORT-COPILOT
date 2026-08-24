@@ -148,7 +148,7 @@ export default function UsageDashboard() {
             Usage
           </h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            OpenAI tokens and estimated cost · stored in this browser
+            Provider tokens and estimated cost · stored in this browser
           </p>
         </div>
 
@@ -344,7 +344,7 @@ export default function UsageDashboard() {
           </section>
 
           <p className="text-xs text-zinc-400 dark:text-zinc-500">
-            Estimates use published OpenAI rates.{' '}
+            Estimates use configured provider rates.{' '}
             <Link href="/docs#pricing" className="text-brand no-underline hover:underline">
               View pricing
             </Link>
