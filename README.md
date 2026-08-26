@@ -52,7 +52,6 @@ Works on [Vercel](https://vercel.com) (or any Node host that runs Next.js). Set 
 | `GROQ_CHAT_MODEL` | No | Default `openai/gpt-oss-120b` |
 | `HF_TOKEN` | Yes | Hugging Face token for embeddings |
 | `HF_EMBEDDING_MODEL` | No | Default `BAAI/bge-small-en-v1.5` |
-| `USD_TO_INR` | No | INR display in usage dashboard |
 
 ## License
 
