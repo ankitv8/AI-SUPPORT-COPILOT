@@ -134,7 +134,7 @@ export const useChatStore = create((set, get) => ({
 
     const budget = get().demoTokenBudget
     if (budget?.exceeded) {
-      setError(DEMO_TOKEN_LIMIT_MESSAGE)
+      setError(budget.source === 'database' ? 'Account token limit reached.' : DEMO_TOKEN_LIMIT_MESSAGE)
       setStatus('error')
       return
     }
