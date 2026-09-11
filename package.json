@@ -17,12 +17,14 @@
     "dev": "next dev -p 3010",
     "build": "next build",
     "start": "next start -p 3010",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "node --test tests/security.test.js tests/retry.test.js"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "next": "16.2.6",
     "pdf-parse": "^1.1.1",
+    "pg": "^8.23.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "react-markdown": "^10.1.0",
