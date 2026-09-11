@@ -1,38 +1,36 @@
-/**
- * Generic HR keyword boosts for demo retrieval — optional, safe for any employer fork.
- */
-export const rerankRules = [
-  { question: /PTO|TIME OFF|VACATION|LEAVE|SICK/i, haystack: /pto|paid time off|sick leave|leave/i, boost: 0.06 },
-  { question: /REMOTE|WFH|WORK FROM HOME|HYBRID/i, haystack: /remote|work from home|hybrid/i, boost: 0.06 },
-  { question: /BENEFIT|INSURANCE|401K|HEALTH/i, haystack: /benefit|insurance|401k|health/i, boost: 0.06 },
-  { question: /EXPENSE|REIMBURSE|RECEIPT/i, haystack: /expense|reimburs|receipt/i, boost: 0.06 },
-  { question: /PASSWORD|IT SUPPORT|LAPTOP|VPN/i, haystack: /password|it support|laptop|vpn/i, boost: 0.06 },
-  { question: /ONBOARD|NEW HIRE|DAY ONE/i, haystack: /onboard|new hire|day one/i, boost: 0.05 },
-  { question: /HR HUB|ACME EXPENSE|INTERNAL TOOL/i, haystack: /hr hub|acme expense|internal tool/i, boost: 0.05 },
-]
+function terms(text) {
+  return new Set(
+    String(text || '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((term) => term.length > 2),
+  )
+}
 
-export function applyRerankRules(chunks, { question, skipRules = false }) {
-  if (skipRules) {
-    return [...chunks].sort((a, b) => b.score - a.score)
+function overlapScore(queryTerms, documentTerms) {
+  if (!queryTerms.size) return 0
+  let matches = 0
+  for (const term of queryTerms) {
+    if (documentTerms.has(term)) matches += 1
   }
+  return matches / queryTerms.size
+}
 
-  const upper = question.toUpperCase()
+export function applyRerankRules(chunks, { question }) {
+  const queryText = String(question || '').toLowerCase().trim()
+  const queryTerms = terms(queryText)
 
-  return chunks
+  return [...chunks]
     .map((chunk) => {
-      let boost = 0
-      const haystack = `${chunk.title} ${chunk.text}`.toUpperCase()
-
-      for (const rule of rerankRules) {
-        const qMatch = rule.question instanceof RegExp ? rule.question.test(upper) : upper.includes(String(rule.question).toUpperCase())
-        const hMatch = rule.haystack instanceof RegExp ? rule.haystack.test(haystack) : haystack.includes(String(rule.haystack).toUpperCase())
-        if (qMatch && hMatch) boost += rule.boost
-      }
+      const content = `${chunk.title || ''} ${chunk.text || ''}`.toLowerCase()
+      const lexicalOverlap = overlapScore(queryTerms, terms(content))
+      const phraseBoost = queryText.length > 3 && content.includes(queryText) ? 0.08 : 0
+      const rerankBoost = lexicalOverlap * 0.12 + phraseBoost
 
       return {
         ...chunk,
-        rerankBoost: boost,
-        score: Number((chunk.score + boost).toFixed(4)),
+        rerankBoost: Number(rerankBoost.toFixed(4)),
+        score: Number((Number(chunk.score || 0) + rerankBoost).toFixed(4)),
       }
     })
     .sort((a, b) => b.score - a.score)
