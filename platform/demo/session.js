@@ -1,1 +1,1 @@
-export const MAX_DEMO_UPLOADS_PER_SESSION = 5
+export const MAX_DEMO_UPLOADS_PER_SESSION = 2
