@@ -19,7 +19,7 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="flex min-h-dvh flex-col font-sans">
+      <body className="flex min-h-dvh flex-col overflow-x-hidden font-sans">
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <VersionBanner />
         <ThemeProvider>

@@ -122,13 +122,13 @@ function FullModelPriceTable() {
         </tr>
       </thead>
       <tbody>
-        {modelCatalog.map((row) => {
+        {modelCatalog.map((row, index) => {
           const in1m = formatVolumePrice(row.inputPerMillion, 1)
           const out1m = formatVolumePrice(row.outputPerMillion, 1)
           const total1m = formatTotalVolumePrice(row.inputPerMillion, row.outputPerMillion, 1)
           return (
             <tr
-              key={row.model}
+              key={`${row.model}-${index}`}
               className={`border-b border-zinc-100 dark:border-zinc-900 ${
                 row.recommended ? 'bg-brand/5 dark:bg-brand/10' : ''
               }`}
@@ -343,8 +343,8 @@ export default function ProductDocs() {
           <p className="mt-3 text-xs text-zinc-500">
             Total = input + output at 1M tokens each. Embedding models are input-only (output —).
             Reasoning models may bill extra hidden tokens. Defaults:{' '}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">gpt-4o-mini</code>,{' '}
-            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">text-embedding-3-small</code>.
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">gpt-oss-120b</code>,{' '}
+            <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">bge-small-en-v1.5</code>.
           </p>
 
           <Link

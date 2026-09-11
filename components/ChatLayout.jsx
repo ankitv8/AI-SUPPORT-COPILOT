@@ -10,7 +10,7 @@ export default function ChatLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
+    <div className="flex h-[calc(100dvh-2.5rem)] min-h-0 max-h-[calc(100dvh-2.5rem)] w-full flex-1 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       <div className="hidden w-72 shrink-0 lg:block">
         <ChatSidebar />
       </div>
@@ -29,7 +29,7 @@ export default function ChatLayout({ children }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900 lg:hidden">
           <div className="flex min-w-0 items-center gap-2">
             <button
@@ -49,7 +49,7 @@ export default function ChatLayout({ children }) {
           <ThemeToggle />
         </header>
 
-        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       </div>
     </div>
   )

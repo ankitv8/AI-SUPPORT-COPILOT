@@ -5,7 +5,7 @@ import { ACCEPTED_EXTENSIONS } from '../lib/knowledge/documentTypes'
 import { formatCompactTokenCount } from '../lib/ai/llm'
 import { DEMO_GUEST_TOKEN_BUDGET } from '../lib/demo/demoTokenLimit.js'
 import { MAX_DEMO_UPLOADS_PER_SESSION } from '../platform/demo/session.js'
-import { addDemoDocument, listDemoDocumentsForUi, removeDemoDocument } from '../lib/demo/demoClient'
+import { addDemoDocument, deleteDemoDocument, listDemoDocumentsForUi } from '../lib/demo/demoClient'
 import { DEMO_TOKEN_LIMIT_MESSAGE } from '../lib/demo/demoTokenLimit.js'
 import { useChatStore } from '../stores/chatStore'
 
@@ -32,6 +32,7 @@ export default function DemoUploadPanel() {
   const atLimit = demoUploads.length >= MAX_DEMO_UPLOADS_PER_SESSION
   const busy = demoUploadStatus === 'uploading' || demoUploadStatus === 'deleting'
   const tokenExceeded = demoTokenBudget?.exceeded
+  const accountUsage = demoTokenBudget?.source === 'database'
   const tokenUsed = demoTokenBudget?.used ?? 0
   const tokenBudget = demoTokenBudget?.budget ?? DEMO_GUEST_TOKEN_BUDGET
   const tokenPct = tokenBudget > 0 ? Math.min(100, (tokenUsed / tokenBudget) * 100) : 0
@@ -56,11 +57,11 @@ export default function DemoUploadPanel() {
     }
   }
 
-  function handleRemove(id) {
+  async function handleRemove(id) {
     setDemoUploadStatus('deleting')
     setDemoUploadError('')
     try {
-      setDemoUploads(removeDemoDocument(id))
+      setDemoUploads(await deleteDemoDocument(id))
       setDemoUploadStatus('idle')
     } catch (err) {
       setDemoUploadError(err.message)
@@ -80,7 +81,7 @@ export default function DemoUploadPanel() {
       {demoTokenBudget && (
         <div className="mt-3 rounded-lg bg-white px-2.5 py-2 dark:bg-zinc-900">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Free trial tokens</span>
+            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{accountUsage ? 'Account tokens' : 'Free trial tokens'}</span>
             <span
               className={`font-mono text-[11px] tabular-nums ${
                 tokenExceeded
@@ -104,7 +105,7 @@ export default function DemoUploadPanel() {
           </div>
           {tokenExceeded && (
             <p className="mt-2 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
-              {DEMO_TOKEN_LIMIT_MESSAGE}
+              {accountUsage ? 'Account token limit reached.' : DEMO_TOKEN_LIMIT_MESSAGE}
             </p>
           )}
         </div>

@@ -51,9 +51,6 @@ export default function ChatSidebar({ onNavigate }) {
       </div>
 
       <div className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
-        <span className="mb-3 inline-flex w-fit rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand">
-          Free trial · No account required
-        </span>
         <DemoUploadPanel />
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{ctx.sidebarCopy.intro}</p>
 
@@ -63,8 +60,8 @@ export default function ChatSidebar({ onNavigate }) {
               {ctx.sidebarCopy.examplesTitle}
             </p>
             <ul className="mt-2 space-y-1">
-              {ctx.examples.map((ex) => (
-                <li key={ex.prompt}>
+              {ctx.examples.map((ex, index) => (
+                <li key={`${ex.prompt}-${index}`}>
                   <button
                     type="button"
                     disabled={status === 'streaming' || demoTokenExceeded}

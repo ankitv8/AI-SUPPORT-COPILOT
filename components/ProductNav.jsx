@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { appBrand, appNav } from '../content/siteConfig'
 import ThemeToggle from './ThemeToggle'
+import AuthStatus from './AuthStatus'
 
 function isNavActive(pathname, href) {
   if (href === '/') return pathname === '/'
@@ -67,6 +68,7 @@ export default function ProductNav() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <AuthStatus compact />
           <ThemeToggle />
           <button
             type="button"

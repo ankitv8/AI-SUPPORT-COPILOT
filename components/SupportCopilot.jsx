@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+
 import { getChatContext, buildDemoExamplesFromDocuments } from '../platform/chat.js'
 import { getDemoDocumentsForChat } from '../lib/demo/demoClient'
 import { getDemoWorkspace } from '../platform/demo/index.js'
@@ -10,6 +11,7 @@ import { useChatStore } from '../stores/chatStore'
 import ChatMarkdown from './ChatMarkdown'
 import ChatModelSelect from './ChatModelSelect'
 import ChatWelcome from './ChatWelcome'
+import AuthStatus from './AuthStatus'
 
 const statusStyles = {
   idle: 'bg-zinc-300 dark:bg-zinc-600',
@@ -178,10 +180,12 @@ export default function SupportCopilot() {
   const quickStart = ctx.examples.slice(0, 4)
   const assistantName = demo.name
 
-  const messagesEndRef = useRef(null)
+  const messagesViewportRef = useRef(null)
+  const shouldFollowMessagesRef = useRef(true)
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    const viewport = messagesViewportRef.current
+    if (viewport && shouldFollowMessagesRef.current) viewport.scrollTop = viewport.scrollHeight
   }, [messages])
 
   async function handleSubmit(event) {
@@ -198,7 +202,7 @@ export default function SupportCopilot() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col bg-white dark:bg-zinc-900">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-zinc-900">
       <header className="flex shrink-0 items-center justify-between gap-2 border-b border-zinc-100 px-3 py-2.5 dark:border-zinc-800 sm:px-4 sm:py-3 lg:px-6">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <span
@@ -220,6 +224,7 @@ export default function SupportCopilot() {
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <ChatModelSelect compact />
+          <AuthStatus compact redirectWhenUnauthenticated />
           {status === 'streaming' && (
             <button
               type="button"
@@ -232,7 +237,15 @@ export default function SupportCopilot() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={messagesViewportRef}
+        onScroll={(event) => {
+          const viewport = event.currentTarget
+          shouldFollowMessagesRef.current =
+            viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 48
+        }}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
         <div className="mx-auto max-w-3xl px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
           {messages.length === 0 && (
             <ChatWelcome
@@ -288,7 +301,6 @@ export default function SupportCopilot() {
             })}
           </div>
 
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
