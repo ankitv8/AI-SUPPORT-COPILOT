@@ -27,14 +27,13 @@ Upload any file and chat with AI about it — like ChatGPT, but every answer is 
 ```bash
 npm install
 cp .env.example .env.local
-# Set GROQ_API_KEY and DATABASE_URL in .env.local.
-# Embeddings run locally; no Hugging Face token is needed.
+# Set GROQ_API_KEY, DATABASE_URL, and JINA_API_KEY in .env.local.
 npm run dev
 ```
 
 Open **http://localhost:3010**
 
-The first upload downloads the embedding model and can take longer than later uploads. On Vercel, the model is cached under `/tmp/models` for the lifetime of a function instance.
+Embeddings are generated through the Jina AI API; no local model download or ONNX runtime is required.
 
 > **Screenshot placeholder:** Add a screenshot of the `/chat` page here.
 
@@ -52,16 +51,19 @@ The first upload downloads the embedding model and can take longer than later up
 - **Lakera Guard** — optional prompt-injection checks for user prompts, retrieved context, and model output
 - **PostgreSQL auth** — required for user accounts, sessions, document ownership, and usage tracking
 
-The `/api/demo/*` endpoints and `lib/demo/` modules power the authenticated upload and chat experience; “demo” is a legacy route/module naming convention, not anonymous access. A valid `DATABASE_URL`, `WEAVIATE_URL`, and signed-in account are required for chat and uploads. `WEAVIATE_API_KEY` is required when the selected Weaviate endpoint requires authentication. An upload is rejected unless every chunk receives a valid embedding and both its text and vector are persisted in Weaviate; it never reports success for a text-only fallback. The chat route takes a PostgreSQL advisory lock per account for the duration of a request, including the response stream; a second simultaneous chat for the same account receives HTTP 429 and `Retry-After: 5` rather than racing the budget check. Managed guardrails remain optional. Embeddings use `Xenova/bge-small-en-v1.5` locally (384 dimensions). Each document is capped at 100 chunks and 500,000 characters; each browser session accepts at most 2 files, up to 5 MB each.
+The `/api/demo/*` endpoints and `lib/demo/` modules power the authenticated upload and chat experience; “demo” is a legacy route/module naming convention, not anonymous access. A valid `DATABASE_URL`, `WEAVIATE_URL`, `JINA_API_KEY`, and signed-in account are required for chat and uploads. `WEAVIATE_API_KEY` is required when the selected Weaviate endpoint requires authentication. An upload is rejected unless every chunk receives a valid embedding and both its text and vector are persisted in Weaviate; it never reports success for a text-only fallback. The chat route takes a PostgreSQL advisory lock per account for the duration of a request, including the response stream; a second simultaneous chat for the same account receives HTTP 429 and `Retry-After: 5` rather than racing the budget check. Managed guardrails remain optional. Embeddings use Jina AI's hosted `jina-embeddings-v3` model (768 dimensions) with task-specific batched requests. Each document is capped at 100 chunks and 500,000 characters; each browser session accepts at most 2 files, up to 5 MB each.
 
 ## Deploy
 
-Works on [Vercel](https://vercel.com) or any Node host that runs Next.js. Set `GROQ_API_KEY`, `DATABASE_URL`, and `WEAVIATE_URL` in the deployment environment. Add `WEAVIATE_API_KEY` if required by the managed Weaviate endpoint. Embeddings run locally and do not require paid Hugging Face Inference credits or an HF token. Configure `LAKERA_API_KEY` for optional managed prompt-injection checks.
+Works on [Vercel](https://vercel.com) or any Node host that runs Next.js. Set `GROQ_API_KEY`, `DATABASE_URL`, `WEAVIATE_URL`, and `JINA_API_KEY` in the deployment environment. Jina API availability, free allowances, and charges depend on your Jina account and plan. Add `WEAVIATE_API_KEY` if required by the managed Weaviate endpoint. Configure `LAKERA_API_KEY` for optional managed prompt-injection checks.
+
+Add `JINA_API_KEY` in Vercel under **Project Settings → Environment Variables** for Production, Preview, and Development, then redeploy. Jina API usage may incur charges and is not included in the app's model-price estimates.
 
 | Variable | Required | Description |
 | --- | --- | --- |
 | `GROQ_API_KEY` | Yes | Groq API key |
 | `GROQ_CHAT_MODEL` | No | Default `openai/gpt-oss-120b` |
+| `JINA_API_KEY` | Yes | Jina AI API key for the Embeddings API |
 | `WEAVIATE_URL` | Yes | Weaviate endpoint; required for durable document text and vector storage |
 | `WEAVIATE_API_KEY` | No | Weaviate API key, when required by the endpoint |
 | `WEAVIATE_CLASS` | No | Default `SupportChunk` |
@@ -78,7 +80,17 @@ Works on [Vercel](https://vercel.com) or any Node host that runs Next.js. Set `G
 
 The application calls the configured endpoint with a JSON body containing `type` (`input` or `output`), `text`, and optional retrieved `context`. The endpoint should return JSON containing `allowed: true|false`, with optional `reason` and `categories` fields. This keeps the application independent of a specific managed provider; expose Azure AI Content Safety, Lakera, Bedrock Guardrails, or an internal adapter behind this contract.
 
-Document ingestion happens through `/api/demo/ingest`, not during chat. Each upload is associated with its authenticated owner. Every document chunk's text and generated vector must be persisted to Weaviate before the upload is reported successful; there is no text-only fallback. Chat performs hybrid retrieval from Weaviate, scoped to the current user's uploaded source IDs. PostgreSQL stores accounts, sessions, document ownership metadata, and per-account token totals; Weaviate stores chunk text and vectors. The first embedding-model load can be slow. Scanned/image-only PDFs can fail extraction, and files with fewer than 20 characters of extracted text are rejected. The API rate limiter is process-local, so limits are not globally coordinated across serverless instances. A PostgreSQL or Weaviate outage prevents the corresponding authenticated operations; there is no guest or non-persistent upload fallback.
+Document ingestion happens through `/api/demo/ingest`, not during chat. Each upload is associated with its authenticated owner. Every document chunk's text and generated vector must be persisted to Weaviate before the upload is reported successful; there is no text-only fallback. Chat performs hybrid retrieval from Weaviate, scoped to the current user's uploaded source IDs. PostgreSQL stores accounts, sessions, document ownership metadata, and per-account token totals; Weaviate stores chunk text and vectors. Embedding requests are sent to Jina AI in batches of up to 32 texts. Scanned/image-only PDFs can fail extraction, and files with fewer than 20 characters of extracted text are rejected. The API rate limiter is process-local, so limits are not globally coordinated across serverless instances. A PostgreSQL or Weaviate outage prevents the corresponding authenticated operations; there is no guest or non-persistent upload fallback.
+
+### Re-embedding Weaviate with Jina AI
+
+The app now uses Jina AI's hosted `jina-embeddings-v3` model with 768-dimensional output, matching the existing Weaviate class dimension. The vectors must still be regenerated because vectors from different embedding models are not comparable. Pause chat and uploads, configure `JINA_API_KEY`, `WEAVIATE_URL`, and `WEAVIATE_API_KEY` if needed in `.env.local`, then run:
+
+```bash
+npm run reembed:weaviate-jina
+```
+
+This command reads the stored chunk text from Weaviate, regenerates embeddings in batches, and updates vectors in place without deleting the class or chunk data. Progress is checkpointed in `weaviate-SupportChunk-jina-embeddings-v3.checkpoint.json`; rerun after interruptions. This updates all chunk objects still present in Weaviate, but cannot recover missing records from the earlier incomplete restore. Restore a separate backup or re-upload any missing documents, and do not resume chat/uploads until the required records are restored and re-embedded.
 
 ## License
 

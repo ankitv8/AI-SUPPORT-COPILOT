@@ -9,7 +9,7 @@ import {
 export const modelPricingMeta = {
   title: 'Provider model pricing',
   intro:
-    'Published rates per model for 1M tokens: input, output, and combined total (input + output). USD and INR (₹) shown for each. Live usage is tracked in your Usage dashboard.',
+    'Published rates per model for 1M tokens: input, output, and combined total (input + output). USD and INR (₹) shown for each. Jina AI API charges are plan-dependent and are not included in these estimates.',
   formula: 'Cost = (input tokens ÷ 1M × input rate) + (output tokens ÷ 1M × output rate). Total column = input + output at 1M each.',
 }
 
@@ -22,7 +22,7 @@ export const envVarRows = [
 ]
 
 const DEFAULT_CHAT = 'openai/gpt-oss-120b'
-const DEFAULT_EMBED = 'Xenova/bge-small-en-v1.5'
+const DEFAULT_EMBED = 'jina-embeddings-v3'
 
 function scenarioCost({ inputTokens, outputTokens, model }) {
   const { usd, inr } = calculateCost({ inputTokens, outputTokens, model })
@@ -111,10 +111,10 @@ export const modelCatalog = [
     usedFor: 'Budget reasoning',
   },
   {
-    model: 'Xenova/bge-small-en-v1.5',
+    model: 'jina-embeddings-v3',
     type: 'Embedding',
-    ...MODEL_PRICING['Xenova/bge-small-en-v1.5'],
-    usedFor: 'Default embeddings',
+    ...MODEL_PRICING['jina-embeddings-v3'],
+    usedFor: 'Hosted embeddings; Jina plan charges are separate',
     recommended: true,
   },
 ]

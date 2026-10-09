@@ -31,6 +31,9 @@ coverage/
 
 # Runtime data
 data/guest-usage/
+weaviate-*-backup*.json
+*.checkpoint.json
+*.checkpoint.json.tmp
 
 Thumbs.db
 

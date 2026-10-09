@@ -10,6 +10,7 @@ import { applyChatStreamEvent, askCopilot } from '../lib/chat/chatClient.js'
 import { getAgentTools, runToolCall } from '../platform/tools.js'
 import { createDemoUsagePayload, normalizeTokenUsage } from '../lib/demo/tokenBudget.js'
 import { assertCompleteEmbeddings } from '../lib/demo/demoRetrieval.js'
+import { EMBEDDING_DIMENSIONS, embedWithJina } from '../lib/ai/embeddings.js'
 import { getUserTokenBudget } from '../lib/core/tokenBudgetConfig.js'
 import { requireAuthenticatedUser } from '../lib/core/auth.js'
 import {
@@ -142,13 +143,75 @@ test('reports Weaviate as unavailable when persistent storage is not configured'
 })
 
 test('rejects uploads unless every chunk has a valid embedding', () => {
-  const chunks = [{ id: 'chunk-1', embedding: Array(384).fill(0.25) }]
+  const chunks = [{ id: 'chunk-1', embedding: Array(EMBEDDING_DIMENSIONS).fill(0.25) }]
   assert.deepEqual(assertCompleteEmbeddings(chunks), chunks)
   assert.throws(() => assertCompleteEmbeddings([]), /valid embedding for every document chunk/)
   assert.throws(
     () => assertCompleteEmbeddings([{ id: 'chunk-1', embedding: [0.1] }]),
     /valid embedding for every document chunk/,
   )
+})
+
+test('uses Jina AI with authenticated batched, normalized embeddings', async () => {
+  const originalToken = process.env.JINA_API_KEY
+  const originalFetch = globalThis.fetch
+  process.env.JINA_API_KEY = 'test-token'
+  let call = null
+  globalThis.fetch = async (url, options) => {
+    call = { url, options }
+    const { input } = JSON.parse(options.body)
+    return Response.json({
+      data: input.map((_, index) => ({
+        index,
+        embedding: index === 0
+          ? [1, 0, ...Array(EMBEDDING_DIMENSIONS - 2).fill(0)]
+          : [0, 1, ...Array(EMBEDDING_DIMENSIONS - 2).fill(0)],
+      })).reverse(),
+    })
+  }
+
+  try {
+    const vectors = await embedWithJina(['document one', 'document two'])
+    assert.equal(call.url, 'https://api.jina.ai/v1/embeddings')
+    assert.equal(call.options.headers.Authorization, 'Bearer test-token')
+    assert.deepEqual(JSON.parse(call.options.body), {
+      model: 'jina-embeddings-v3',
+      task: 'retrieval.passage',
+      dimensions: EMBEDDING_DIMENSIONS,
+      input: ['document one', 'document two'],
+    })
+    assert.equal(vectors.length, 2)
+    assert.equal(vectors[0].length, EMBEDDING_DIMENSIONS)
+    assert.ok(vectors[0][0] > vectors[1][0])
+    assert.ok(Math.abs(Math.sqrt(vectors[0].reduce((sum, value) => sum + value ** 2, 0)) - 1) < 1e-12)
+
+    await embedWithJina(['user query'], { isQuery: true })
+    assert.equal(JSON.parse(call.options.body).task, 'retrieval.query')
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalToken === undefined) delete process.env.JINA_API_KEY
+    else process.env.JINA_API_KEY = originalToken
+  }
+})
+
+test('explains Jina credit exhaustion without retrying an unrecoverable payment error', async () => {
+  const originalToken = process.env.JINA_API_KEY
+  const originalFetch = globalThis.fetch
+  process.env.JINA_API_KEY = 'test-token'
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls += 1
+    return new Response('payment required', { status: 402 })
+  }
+
+  try {
+    await assert.rejects(embedWithJina(['document']), /Jina AI embedding request failed \(402\).*plan, credits, and billing/)
+    assert.equal(calls, 1)
+  } finally {
+    globalThis.fetch = originalFetch
+    if (originalToken === undefined) delete process.env.JINA_API_KEY
+    else process.env.JINA_API_KEY = originalToken
+  }
 })
 
 test('keeps relevant details from multiple files when ranking across sources', () => {
