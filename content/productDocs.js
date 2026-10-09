@@ -9,7 +9,7 @@ export const productDocs = {
   toc: [
     { id: 'overview', label: 'Overview' },
     { id: 'quick-start', label: 'Quick start' },
-    { id: 'free-trial', label: 'Chat (/chat)' },
+    { id: 'chat', label: 'Chat (/chat)' },
     { id: 'usage', label: 'Usage dashboard' },
     { id: 'api', label: 'API routes' },
     { id: 'faq', label: 'FAQ' },
@@ -19,19 +19,20 @@ export const productDocs = {
 
   overview: {
     summary:
-      'AI Support Copilot lets you upload any supported file and chat with AI about it — like ChatGPT, but every answer is grounded in your upload. Hybrid vector + keyword search finds the right passages; the model streams cited replies. No account required.',
+      'AI Support Copilot lets signed-in users upload supported files and chat with AI about them — like ChatGPT, but every answer is grounded in the upload. Hybrid vector + keyword search finds the right passages; the model streams cited replies.',
     highlights: [
       'Chat at /chat — upload a file, ask anything, get cited answers.',
       'Supports PDF, text, Markdown, JSON, CSV, and HTML.',
-      '100K token free-trial budget (enforced server-side per device/network).',
-      'Files in sessionStorage; usage history in IndexedDB at /usage.',
+      'Per-account token budget enforced server-side.',
+      'File text in sessionStorage; document ownership and token totals in PostgreSQL; usage history in IndexedDB at /usage.',
     ],
   },
 
   quickStart: {
     steps: [
-      { step: 'Open /chat', detail: 'No account required. Meet AI Support Copilot.' },
-      { step: 'Upload any file', detail: 'PDF, text, Markdown, JSON, CSV, or HTML in the sidebar (max 5 files, 5 MB each).' },
+      { step: 'Sign in or create an account', detail: 'Your files and token usage are associated with your account.' },
+      { step: 'Open /chat', detail: 'Start a private chat workspace.' },
+      { step: 'Upload any file', detail: 'PDF, text, Markdown, JSON, CSV, or HTML in the sidebar (max 2 files, 5 MB each).' },
       { step: 'Ask a question', detail: 'Chat naturally — pick a suggested prompt or type your own. Answers stream with source chips.' },
       { step: 'Check /usage', detail: 'See estimated provider usage from your sessions — stored in IndexedDB.' },
     ],
@@ -41,15 +42,16 @@ export const productDocs = {
     intro:
       'Upload any file and chat with AI Support Copilot. The experience feels like ChatGPT, but retrieval runs over your upload only — answers include source citations from your file.',
     steps: [
-      { step: 'Open /chat', detail: 'No account required.' },
+      { step: 'Sign in or create an account', detail: 'Account access is required to use the workspace.' },
+      { step: 'Open /chat', detail: 'Upload files in your account workspace.' },
       { step: 'Upload any file', detail: 'Text/JSON/MD parse in-browser; PDF uses POST /api/demo/parse (stateless, not stored).' },
       { step: 'Ask anything', detail: 'Suggested prompts come from your file title and headings.' },
-      { step: 'Watch your token budget', detail: 'Sidebar meter tracks usage (100K max — enforced on the server, not reset by clearing browser data).' },
+      { step: 'Watch your token budget', detail: 'The sidebar meter tracks your account usage against the configured limit.' },
     ],
     limits: [
-      '5 files per session · 5 MB each · PDF, text, MD, JSON, CSV, HTML',
-      '100K provider tokens per device/network (server-enforced)',
-      'Documents in sessionStorage — not saved to any database',
+      '2 files per browser session · 5 MB each · PDF, text, MD, JSON, CSV, HTML',
+      'Token budget is configured per account with USER_TOKEN_BUDGET',
+      'Document ownership and usage totals are stored in PostgreSQL',
     ],
   },
 
@@ -57,7 +59,7 @@ export const productDocs = {
     intro:
       'The usage dashboard reads from IndexedDB in your browser. Each chat session records input/output tokens and estimated USD/INR cost using published model rates.',
     points: [
-      'Token budget is tracked server-side — clearing browser data does not reset it.',
+      'Token budget is checked and persisted per account on the server.',
       'Filter by 7, 30, or 90 days.',
       'Breakdown by endpoint and model; daily series for the last 14 days.',
     ],
@@ -69,7 +71,7 @@ export const productDocs = {
       {
         method: 'POST',
         path: '/api/chat',
-        detail: 'Streams chat via SSE. Receives your question and uploaded file chunks. Enforces 100K token budget server-side (cookie + IP). Uses Hugging Face for embeddings and Groq for chat.',
+        detail: 'Streams Groq tokens through SSE as they arrive, then checks the complete answer with the output safety guardrail and replaces it if blocked. Receives your question and uploaded file chunks. Checks the token budget and a 100-request/minute per-IP API rate limit. Embeddings run locally with Transformers.js; chat uses Groq.',
       },
       {
         method: 'POST',
@@ -77,7 +79,7 @@ export const productDocs = {
         detail: 'Extracts text from a PDF upload. Stateless — file content is not stored on the server.',
       },
     ],
-    envNote: 'Server env: GROQ_API_KEY, GROQ_CHAT_MODEL, HF_TOKEN, HF_EMBEDDING_MODEL, USD_TO_INR.',
+    envNote: 'Server env: GROQ_API_KEY, GROQ_CHAT_MODEL, WEAVIATE_URL, WEAVIATE_API_KEY, USD_TO_INR.',
   },
 
   faq: [
@@ -88,19 +90,19 @@ export const productDocs = {
     },
     {
       question: 'What files can I upload?',
-      answer: 'PDF, plain text, Markdown, JSON, HTML, and CSV — up to 5 MB each, 5 files per session.',
+      answer: 'PDF, plain text, Markdown, JSON, HTML, and CSV — up to 5 MB each, 2 files per browser session.',
     },
     {
       question: 'Do I need an account?',
-      answer: 'No. Upload a file and start chatting. Documents, token budget, and usage all stay in your browser.',
+      answer: 'Yes. Sign in or create an account before uploading files or chatting.',
     },
     {
       question: 'Is my data stored on a server?',
-      answer: 'Upload text stays in sessionStorage. PDFs are parsed via a stateless API call and not persisted. Hugging Face receives embedding text, while Groq receives the question and retrieved chunks for each chat request.',
+      answer: 'Upload text stays in sessionStorage unless Weaviate persistence is configured. PostgreSQL stores document ownership and usage totals. PDFs are parsed via a stateless API call. Embeddings are generated locally; Groq receives the question and retrieved chunks for each chat request.',
     },
     {
       question: 'What happens when I hit the token limit?',
-      answer: 'Chat is disabled after 100K tokens. The limit is enforced on the server (tied to your device cookie and network), so clearing browser data will not reset it.',
+      answer: 'Chat is blocked when the configured per-account token budget is reached. Set USER_TOKEN_BUDGET in the server environment.',
     },
     {
       question: 'Can the AI hallucinate?',

@@ -10,6 +10,7 @@ import ThemeToggle from './ThemeToggle'
 
 export default function ChatSidebar({ onNavigate }) {
   const status = useChatStore((s) => s.status)
+  const accountId = useChatStore((s) => s.accountId)
   const demoUploads = useChatStore((s) => s.demoUploads)
   const demoTokenBudget = useChatStore((s) => s.demoTokenBudget)
   const submitQuestion = useChatStore((s) => s.submitQuestion)
@@ -17,7 +18,7 @@ export default function ChatSidebar({ onNavigate }) {
   const demoTokenExceeded = Boolean(demoTokenBudget?.exceeded)
 
   const demoExampleList =
-    demoUploads.length > 0 ? buildDemoExamplesFromDocuments(getDemoDocumentsForChat()) : null
+    demoUploads.length > 0 ? buildDemoExamplesFromDocuments(getDemoDocumentsForChat(accountId)) : null
 
   const ctx = getChatContext({
     demoMode: true,

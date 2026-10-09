@@ -197,11 +197,6 @@ export function SpendAreaChart({ points, formatLabel, formatValue }) {
   )
 }
 
-/** @deprecated use SpendAreaChart */
-export function BarChart(props) {
-  return <SpendAreaChart {...props} />
-}
-
 export function buildChartSlices(items, valueKey, labelFn, formatValue) {
   return items
     .filter((item) => item[valueKey] > 0)

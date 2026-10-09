@@ -1,12 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ACCEPTED_EXTENSIONS } from '../lib/knowledge/documentTypes'
 import { formatCompactTokenCount } from '../lib/ai/llm'
-import { DEMO_GUEST_TOKEN_BUDGET } from '../lib/demo/demoTokenLimit.js'
+import { DEFAULT_TOKEN_BUDGET, DEMO_TOKEN_LIMIT_MESSAGE } from '../lib/demo/tokenBudget.js'
 import { MAX_DEMO_UPLOADS_PER_SESSION } from '../platform/demo/session.js'
 import { addDemoDocument, deleteDemoDocument, listDemoDocumentsForUi } from '../lib/demo/demoClient'
-import { DEMO_TOKEN_LIMIT_MESSAGE } from '../lib/demo/demoTokenLimit.js'
 import { useChatStore } from '../stores/chatStore'
 
 const acceptAttr = ACCEPTED_EXTENSIONS.join(',')
@@ -17,52 +16,92 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+async function isServiceUnavailable() {
+  try {
+    const response = await fetch('/api/health', { cache: 'no-store' })
+    if (!response.ok) return true
+    const health = await response.json()
+    return health.ok !== true
+  } catch {
+    return true
+  }
+}
+
 export default function DemoUploadPanel() {
   const inputRef = useRef(null)
   const demoUploads = useChatStore((s) => s.demoUploads)
+  const accountId = useChatStore((s) => s.accountId)
   const demoUploadStatus = useChatStore((s) => s.demoUploadStatus)
   const demoUploadError = useChatStore((s) => s.demoUploadError)
   const demoTokenBudget = useChatStore((s) => s.demoTokenBudget)
+  const demoTokenBudgetStatus = useChatStore((s) => s.demoTokenBudgetStatus)
+  const refreshDemoTokenBudget = useChatStore((s) => s.refreshDemoTokenBudget)
   const setDemoUploads = useChatStore((s) => s.setDemoUploads)
   const setDemoUploadStatus = useChatStore((s) => s.setDemoUploadStatus)
   const setDemoUploadError = useChatStore((s) => s.setDemoUploadError)
   const chatStatus = useChatStore((s) => s.status)
 
   const [dragOver, setDragOver] = useState(false)
+  const [serviceUnavailable, setServiceUnavailable] = useState(false)
   const atLimit = demoUploads.length >= MAX_DEMO_UPLOADS_PER_SESSION
   const busy = demoUploadStatus === 'uploading' || demoUploadStatus === 'deleting'
   const tokenExceeded = demoTokenBudget?.exceeded
-  const accountUsage = demoTokenBudget?.source === 'database'
   const tokenUsed = demoTokenBudget?.used ?? 0
-  const tokenBudget = demoTokenBudget?.budget ?? DEMO_GUEST_TOKEN_BUDGET
+  const tokenBudget = demoTokenBudget?.budget ?? DEFAULT_TOKEN_BUDGET
   const tokenPct = tokenBudget > 0 ? Math.min(100, (tokenUsed / tokenBudget) * 100) : 0
 
+  useEffect(() => {
+    void isServiceUnavailable().then(setServiceUnavailable)
+  }, [])
+
   async function handleFiles(files) {
-    if (!files?.length || atLimit) return
+    if (!accountId || !files?.length || atLimit) return
     setDemoUploadStatus('uploading')
     setDemoUploadError('')
 
     try {
-      let current = listDemoDocumentsForUi()
+      let current = listDemoDocumentsForUi(accountId)
       for (const file of files) {
         if (current.length >= MAX_DEMO_UPLOADS_PER_SESSION) break
-        await addDemoDocument({ file })
-        current = listDemoDocumentsForUi()
+        await addDemoDocument({ file, accountId })
+        current = listDemoDocumentsForUi(accountId)
         setDemoUploads(current)
       }
       setDemoUploadStatus('idle')
+      setServiceUnavailable(await isServiceUnavailable())
     } catch (err) {
       setDemoUploadError(err.message)
       setDemoUploadStatus('error')
     }
   }
 
+  async function handleSampleFile() {
+    if (!accountId || busy || atLimit) return
+    setDemoUploadStatus('uploading')
+    setDemoUploadError('')
+    try {
+      const response = await fetch('/sample-support-guide.md')
+      if (!response.ok) throw new Error("Couldn't process this file, please try again.")
+      const content = await response.text()
+      const file = new File([content], 'sample-support-guide.md', { type: 'text/markdown' })
+      await addDemoDocument({ file, accountId })
+      setDemoUploads(listDemoDocumentsForUi(accountId))
+      setDemoUploadStatus('idle')
+      setServiceUnavailable(await isServiceUnavailable())
+    } catch {
+      setDemoUploadError("Couldn't process this file, please try again.")
+      setDemoUploadStatus('error')
+    }
+  }
+
   async function handleRemove(id) {
+    if (!accountId) return
     setDemoUploadStatus('deleting')
     setDemoUploadError('')
     try {
-      setDemoUploads(await deleteDemoDocument(id))
+      setDemoUploads(await deleteDemoDocument(id, accountId))
       setDemoUploadStatus('idle')
+      setServiceUnavailable(await isServiceUnavailable())
     } catch (err) {
       setDemoUploadError(err.message)
       setDemoUploadStatus('error')
@@ -78,10 +117,10 @@ export default function DemoUploadPanel() {
         Upload any file — PDF, text, JSON, and more. Chat with AI Support Copilot about it.
       </p>
 
-      {demoTokenBudget && (
+      {demoTokenBudget ? (
         <div className="mt-3 rounded-lg bg-white px-2.5 py-2 dark:bg-zinc-900">
           <div className="flex items-baseline justify-between gap-2">
-            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">{accountUsage ? 'Account tokens' : 'Free trial tokens'}</span>
+            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Account tokens</span>
             <span
               className={`font-mono text-[11px] tabular-nums ${
                 tokenExceeded
@@ -90,7 +129,7 @@ export default function DemoUploadPanel() {
                     ? 'text-amber-600 dark:text-amber-400'
                     : 'text-zinc-700 dark:text-zinc-300'
               }`}
-              title="Provider tokens used in this browser"
+              title="Provider tokens used by this account"
             >
               {formatCompactTokenCount(tokenUsed)} / {formatCompactTokenCount(tokenBudget)}
             </span>
@@ -105,8 +144,39 @@ export default function DemoUploadPanel() {
           </div>
           {tokenExceeded && (
             <p className="mt-2 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
-              {accountUsage ? 'Account token limit reached.' : DEMO_TOKEN_LIMIT_MESSAGE}
+              {DEMO_TOKEN_LIMIT_MESSAGE}
             </p>
+          )}
+          {demoTokenBudgetStatus === 'error' && (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <p className="text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
+                Showing the last synced usage; the database could not be reached.
+              </p>
+              <button
+                type="button"
+                onClick={refreshDemoTokenBudget}
+                className="shrink-0 text-[10px] font-medium text-brand hover:underline"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 dark:bg-zinc-900">
+          <p className="text-[10px] text-zinc-500 dark:text-zinc-400">
+            {demoTokenBudgetStatus === 'error'
+              ? 'Token usage unavailable. Check the database connection.'
+              : 'Loading token usage…'}
+          </p>
+          {demoTokenBudgetStatus === 'error' && (
+            <button
+              type="button"
+              onClick={refreshDemoTokenBudget}
+              className="shrink-0 text-[10px] font-medium text-brand hover:underline"
+            >
+              Retry
+            </button>
           )}
         </div>
       )}
@@ -117,7 +187,7 @@ export default function DemoUploadPanel() {
         accept={acceptAttr}
         className="hidden"
         multiple
-        disabled={busy || atLimit || chatStatus === 'streaming'}
+        disabled={!accountId || busy || atLimit || chatStatus === 'streaming'}
         onChange={(e) => {
           handleFiles(Array.from(e.target.files || []))
           e.target.value = ''
@@ -126,7 +196,7 @@ export default function DemoUploadPanel() {
 
       <button
         type="button"
-        disabled={busy || atLimit || chatStatus === 'streaming'}
+        disabled={!accountId || busy || atLimit || chatStatus === 'streaming'}
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault()
@@ -146,6 +216,14 @@ export default function DemoUploadPanel() {
       >
         {busy ? 'Processing…' : atLimit ? 'Upload limit reached' : 'Upload file'}
       </button>
+      <button
+        type="button"
+        disabled={busy || atLimit || chatStatus === 'streaming'}
+        onClick={handleSampleFile}
+        className="mt-2 w-full rounded-lg px-3 py-2 text-xs font-medium text-brand underline-offset-2 hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        Try a sample file
+      </button>
 
       <p className="mt-2 text-[10px] text-zinc-400">
         {demoUploads.length}/{MAX_DEMO_UPLOADS_PER_SESSION} files · max 5 MB each
@@ -153,6 +231,12 @@ export default function DemoUploadPanel() {
 
       {demoUploadError && (
         <p className="mt-2 text-[11px] text-red-600 dark:text-red-400">{demoUploadError}</p>
+      )}
+
+      {serviceUnavailable && (
+        <p role="status" className="mt-2 text-[11px] text-amber-600 dark:text-amber-400">
+          Service is temporarily unavailable. Files can still be used locally for this session.
+        </p>
       )}
 
       {demoUploads.length > 0 && (

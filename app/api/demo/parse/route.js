@@ -1,13 +1,21 @@
 import { isDemoEnabled } from '../../../../platform/demo/index.js'
 import { parseUploadedFile } from '../../../../lib/knowledge/documentParser.js'
 import { MAX_UPLOAD_BYTES } from '../../../../lib/knowledge/documentTypes.js'
+import { checkApiRateLimit } from '../../../../lib/core/apiRateLimit.js'
+import { checkApiTokenBudget } from '../../../../lib/core/apiBudget.js'
+import { requireAuthenticatedUser } from '../../../../lib/core/auth.js'
 
 export const runtime = 'nodejs'
+export const maxDuration = 60
 
 export async function POST(request) {
-  if (!isDemoEnabled()) {
-    return Response.json({ error: 'Demo is disabled.' }, { status: 404 })
-  }
+  const rateLimit = checkApiRateLimit(request)
+  if (rateLimit) return rateLimit
+  const { user, response } = await requireAuthenticatedUser(request)
+  if (response) return response
+  const budgetLimit = await checkApiTokenBudget(user)
+  if (budgetLimit) return budgetLimit
+  if (!isDemoEnabled()) return Response.json({ error: 'Demo is disabled.' }, { status: 404 })
 
   try {
     const formData = await request.formData()
@@ -36,6 +44,7 @@ export async function POST(request) {
       sizeBytes: file.size,
     })
   } catch (error) {
-    return Response.json({ error: error.message || 'Parse failed' }, { status: 400 })
+    console.error('[document-parse] failed', error)
+    return Response.json({ error: "Couldn't process this file, please try again." }, { status: 400 })
   }
 }

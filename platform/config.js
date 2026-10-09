@@ -18,7 +18,6 @@ export const platformConfig = {
 
   features: {
     publicDemo: true,
-    agentTools: false,
   },
 
   demo: {

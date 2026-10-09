@@ -89,12 +89,19 @@ export default function UsageDashboard() {
     setLoading(true)
     setError('')
     try {
-      const [{ getClientUsageDashboard }, { fetchDemoGuestBudgetFromServer }] = await Promise.all([
+      const authResponse = await fetch('/api/auth/me', { credentials: 'include', cache: 'no-store' })
+      if (!authResponse.ok) throw new Error('Account service is temporarily unavailable.')
+      const account = await authResponse.json()
+      if (!account.configured || !account.user) {
+        window.location.replace('/login?next=/usage')
+        return
+      }
+      const [{ getClientUsageDashboard }, { fetchAccountTokenBudgetFromServer }] = await Promise.all([
         import('../lib/core/clientUsageStore.js'),
         import('../lib/demo/demoTokenBudget.js'),
       ])
       setData(await getClientUsageDashboard({ days }))
-      setTokenBudget(await fetchDemoGuestBudgetFromServer())
+      setTokenBudget(await fetchAccountTokenBudgetFromServer(account.user.id))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -184,7 +191,7 @@ export default function UsageDashboard() {
         <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Free trial budget</p>
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Account token budget</p>
               <p className="mt-1 font-mono text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                 {formatCompactTokenCount(tokenBudget.used)}{' '}
                 <span className="text-sm font-normal text-zinc-400">/</span>{' '}
@@ -193,7 +200,7 @@ export default function UsageDashboard() {
             </div>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {tokenBudget.exceeded
-                ? 'Limit reached for this device / network'
+                ? 'Account limit reached'
                 : `${formatCompactTokenCount(tokenBudget.remaining)} remaining`}
             </p>
           </div>

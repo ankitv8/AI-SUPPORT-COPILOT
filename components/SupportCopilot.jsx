@@ -159,6 +159,7 @@ export default function SupportCopilot() {
   const status = useChatStore((s) => s.status)
   const error = useChatStore((s) => s.error)
   const demoUploads = useChatStore((s) => s.demoUploads)
+  const accountId = useChatStore((s) => s.accountId)
   const demoTokenBudget = useChatStore((s) => s.demoTokenBudget)
   const setQuestion = useChatStore((s) => s.setQuestion)
   const submitQuestion = useChatStore((s) => s.submitQuestion)
@@ -166,7 +167,7 @@ export default function SupportCopilot() {
 
   const demo = getDemoWorkspace()
   const demoExampleList =
-    demoUploads.length > 0 ? buildDemoExamplesFromDocuments(getDemoDocumentsForChat()) : null
+    demoUploads.length > 0 ? buildDemoExamplesFromDocuments(getDemoDocumentsForChat(accountId)) : null
 
   const demoTokenExceeded = Boolean(demoTokenBudget?.exceeded)
   const demoChatBlocked = demoUploads.length === 0 || demoTokenExceeded
@@ -218,7 +219,7 @@ export default function SupportCopilot() {
             </div>
             <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
               {demo.tagline}
-              {status === 'streaming' ? ' · typing…' : ' · online'}
+              {status === 'streaming' ? ' · preparing reply…' : ' · online'}
             </p>
           </div>
         </div>
@@ -286,7 +287,7 @@ export default function SupportCopilot() {
                       <ChatMarkdown content={message.content} />
                     ) : (
                       <p className="text-sm text-zinc-400 dark:text-zinc-500">
-                        {assistantName} is typing
+                        {assistantName} is preparing a reply
                         <span className="thinking-dot">.</span>
                         <span className="thinking-dot">.</span>
                         <span className="thinking-dot">.</span>
@@ -319,7 +320,7 @@ export default function SupportCopilot() {
               onKeyDown={handleKeyDown}
               placeholder={
                 demoTokenExceeded
-                  ? 'Free trial limit reached'
+                  ? 'Account token limit reached'
                   : welcome.placeholder
               }
               rows={2}

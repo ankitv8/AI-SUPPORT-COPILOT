@@ -7,7 +7,7 @@ export const landing = {
     highlights: ['Any file upload', 'ChatGPT-style chat', 'Cited answers', 'Hybrid RAG'],
     ctaPrimary: { label: 'Start chatting', href: '/chat' },
     ctaSecondary: { label: 'View usage', href: '/usage' },
-    trustLine: 'Your files stay in the browser · 100K free trial tokens · No account required',
+    trustLine: 'Sign-in required · Account-level usage limits · Answers grounded in your files',
     quickLinks: [
       { label: 'How it works', href: '#how-it-works' },
       { label: 'Features', href: '#features' },
@@ -18,7 +18,7 @@ export const landing = {
       { value: 'Any', label: 'File you upload' },
       { value: '100%', label: 'Cited answers' },
       { value: 'Hybrid', label: 'Vector + BM25' },
-      { value: '100K', label: 'Free trial tokens' },
+      { value: 'Private', label: 'Account workspace' },
     ],
   },
 
@@ -41,7 +41,7 @@ export const landing = {
       {
         step: '01',
         title: 'Upload any file',
-        detail: 'PDF, text, Markdown, JSON, CSV, or HTML — up to 5 files, 5 MB each. Drop in the sidebar at /chat.',
+        detail: 'PDF, text, Markdown, JSON, CSV, or HTML — up to 2 files, 5 MB each. Drop in the sidebar at /chat.',
       },
       {
         step: '02',

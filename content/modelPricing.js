@@ -16,20 +16,13 @@ export const modelPricingMeta = {
 export const envVarRows = [
   { variable: 'GROQ_API_KEY', default: '—', description: 'Required — Groq API authentication' },
   { variable: 'GROQ_CHAT_MODEL', default: 'openai/gpt-oss-120b', description: 'Chat and planning' },
-  { variable: 'HF_TOKEN', default: '—', description: 'Required — Hugging Face API authentication' },
-  { variable: 'HF_EMBEDDING_MODEL', default: 'BAAI/bge-small-en-v1.5', description: 'Document & query embeddings' },
+  { variable: 'WEAVIATE_URL', default: '—', description: 'Optional — persistent vector storage' },
+  { variable: 'WEAVIATE_API_KEY', default: '—', description: 'Optional — Weaviate authentication' },
   { variable: 'USD_TO_INR', default: String(DEFAULT_USD_TO_INR), description: 'INR conversion in Usage dashboard' },
 ]
 
-export const endpointRows = [
-  { endpoint: 'embedding', model: 'HF_EMBEDDING_MODEL', when: 'Per upload chunk + each chat query' },
-  { endpoint: 'chat_plan', model: 'GROQ_CHAT_MODEL', when: 'Optional tool planning per question' },
-  { endpoint: 'chat_stream', model: 'GROQ_CHAT_MODEL', when: 'Streamed answer (POST /api/chat)' },
-  { endpoint: 'pdf_parse', model: '—', when: 'POST /api/demo/parse — local PDF text extraction only' },
-]
-
 const DEFAULT_CHAT = 'openai/gpt-oss-120b'
-const DEFAULT_EMBED = 'BAAI/bge-small-en-v1.5'
+const DEFAULT_EMBED = 'Xenova/bge-small-en-v1.5'
 
 function scenarioCost({ inputTokens, outputTokens, model }) {
   const { usd, inr } = calculateCost({ inputTokens, outputTokens, model })
@@ -76,9 +69,9 @@ export const modelCatalog = [
     usedFor: 'Higher-quality mini tier',
   },
   {
-    model: 'qwen/qwen3.6-27b',
+    model: 'qwen/qwen3.8-27b',
     type: 'Chat',
-    ...MODEL_PRICING['qwen/qwen3.6-27b'],
+    ...MODEL_PRICING['qwen/qwen3.8-27b'],
     usedFor: 'High-volume simple tasks',
   },
   {
@@ -118,18 +111,13 @@ export const modelCatalog = [
     usedFor: 'Budget reasoning',
   },
   {
-    model: 'BAAI/bge-small-en-v1.5',
+    model: 'Xenova/bge-small-en-v1.5',
     type: 'Embedding',
-    ...MODEL_PRICING['BAAI/bge-small-en-v1.5'],
+    ...MODEL_PRICING['Xenova/bge-small-en-v1.5'],
     usedFor: 'Default embeddings',
     recommended: true,
   },
 ]
-
-export function formatPricePerMillion(usd) {
-  if (usd === 0) return '—'
-  return `$${usd.toFixed(2)}`
-}
 
 /** Price for N million tokens at the per-1M rate. */
 export function formatVolumePrice(usdPerMillion, millions = 1) {

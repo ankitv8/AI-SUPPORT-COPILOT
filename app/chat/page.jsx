@@ -1,5 +1,5 @@
 import ChatLayout from '../../components/ChatLayout'
-import DemoCopilot from '../../components/DemoCopilot'
+import ChatExperience from '../../components/ChatExperience'
 
 export const metadata = {
   title: 'Chat | AI Support Copilot',
@@ -10,7 +10,7 @@ export const metadata = {
 export default function ChatPage() {
   return (
     <ChatLayout>
-      <DemoCopilot />
+      <ChatExperience />
     </ChatLayout>
   )
 }

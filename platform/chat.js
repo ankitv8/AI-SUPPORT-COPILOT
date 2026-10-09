@@ -27,20 +27,6 @@ export const portalExamples = [
   { label: 'Remote work', prompt: 'What are the remote work or WFH guidelines?' },
 ]
 
-/** Build portal quick-start chips from employer-uploaded document titles. */
-export function buildPortalExamplesFromDocuments(documents, { max = 6 } = {}) {
-  if (!Array.isArray(documents) || !documents.length) return []
-
-  return documents.slice(0, max).map((doc) => {
-    const title = (doc.title || doc.filename || 'this document').trim()
-    const label = title.length > 40 ? `${title.slice(0, 37)}…` : title
-    return {
-      label,
-      prompt: `What are the key points in "${title}"?`,
-    }
-  })
-}
-
 /** Extract section titles from markdown, numbered lists, or plain-text headers. */
 export function extractHeadingsFromText(text, { max = 6 } = {}) {
   const headings = []

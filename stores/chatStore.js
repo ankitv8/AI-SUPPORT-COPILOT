@@ -1,16 +1,20 @@
 import { create } from 'zustand'
-import { askCopilot } from '../lib/chat/chatClient'
+import { applyChatStreamEvent, askCopilot, CHAT_TIMEOUT_MS } from '../lib/chat/chatClient'
 import { getDemoDocumentsForChat, listDemoDocumentsForUi } from '../lib/demo/demoClient'
+import { clearDemoDocuments } from '../lib/demo/demoBrowserStore'
 import { buildHistoryFromMessages, getStarterMessages } from '../lib/chat/chatHistory'
 import {
-  applyDemoTokenUsageFromServer,
-  fetchDemoGuestBudgetFromServer,
-  getDemoGuestBudgetSnapshot,
+  applyAccountTokenUsageFromServer,
+  fetchAccountTokenBudgetFromServer,
+  getCachedAccountBudgetSnapshot,
+  clearCachedAccountBudgetSnapshot,
 } from '../lib/demo/demoTokenBudget.js'
-import { DEMO_TOKEN_LIMIT_MESSAGE } from '../lib/demo/demoTokenLimit.js'
+import { DEMO_TOKEN_LIMIT_MESSAGE } from '../lib/demo/tokenBudget.js'
 import { recordClientUsage } from '../lib/core/clientUsageStore.js'
 import { loadChatModelPreference, saveChatModelPreference } from '../lib/chat/chatModelPreference'
 import { resolveChatModel } from '../lib/ai/chatModels'
+
+let accountSessionVersion = 0
 
 async function persistUsageFromChat({ demoTokenUsage, traceId, model }) {
   if (!demoTokenUsage?.requestTokens) return
@@ -27,33 +31,94 @@ export const useChatStore = create((set, get) => ({
   messages: getStarterMessages({ demoMode: true }),
   question: '',
   chatModel: loadChatModelPreference(),
+  accountId: null,
   demoUploads: [],
   demoUploadStatus: 'idle',
   demoUploadError: '',
   demoTokenBudget: null,
+  demoTokenBudgetStatus: 'loading',
   status: 'idle',
   error: '',
   abortController: null,
 
-  configureDemo: () => {
+  configureDemo: (accountId) => {
+    if (!accountId) return
+    accountSessionVersion += 1
+    const sessionVersion = accountSessionVersion
+    get().abortController?.abort()
     set({
-      demoUploads: listDemoDocumentsForUi(),
+      accountId,
+      abortController: null,
+      demoUploads: listDemoDocumentsForUi(accountId),
       messages: getStarterMessages({ demoMode: true }),
       question: '',
       status: 'idle',
       error: '',
       demoUploadError: '',
-      demoTokenBudget: getDemoGuestBudgetSnapshot(),
+      demoTokenBudget: getCachedAccountBudgetSnapshot(accountId),
+      demoTokenBudgetStatus: 'loading',
     })
-    void fetchDemoGuestBudgetFromServer()
-      .then((budget) => set({ demoTokenBudget: budget }))
-      .catch(() => {})
+    void fetchAccountTokenBudgetFromServer(accountId)
+      .then((budget) => {
+        if (sessionVersion === accountSessionVersion) {
+          set({ demoTokenBudget: budget, demoTokenBudgetStatus: 'ready' })
+        }
+      })
+      .catch(() => {
+        if (sessionVersion === accountSessionVersion) {
+          set({
+            demoTokenBudget:
+              get().accountId === accountId
+                ? get().demoTokenBudget || getCachedAccountBudgetSnapshot(accountId)
+                : null,
+            demoTokenBudgetStatus: 'error',
+          })
+        }
+      })
+  },
+
+  clearAccountSession: () => {
+    accountSessionVersion += 1
+    const accountId = get().accountId
+    get().abortController?.abort()
+    if (accountId) {
+      clearDemoDocuments(accountId)
+      clearCachedAccountBudgetSnapshot(accountId)
+    }
+    set({
+      accountId: null,
+      messages: getStarterMessages({ demoMode: true }),
+      question: '',
+      demoUploads: [],
+      demoUploadStatus: 'idle',
+      demoUploadError: '',
+      demoTokenBudget: null,
+      demoTokenBudgetStatus: 'loading',
+      status: 'idle',
+      error: '',
+      abortController: null,
+    })
   },
 
   refreshDemoTokenBudget: () => {
-    void fetchDemoGuestBudgetFromServer()
-      .then((budget) => set({ demoTokenBudget: budget }))
-      .catch(() => set({ demoTokenBudget: getDemoGuestBudgetSnapshot() }))
+    const accountId = get().accountId
+    if (!accountId) return
+    const sessionVersion = accountSessionVersion
+    set({ demoTokenBudgetStatus: 'loading' })
+    void fetchAccountTokenBudgetFromServer(accountId)
+      .then((budget) => {
+        if (sessionVersion === accountSessionVersion) {
+          set({ demoTokenBudget: budget, demoTokenBudgetStatus: 'ready' })
+        }
+      })
+      .catch(() => {
+        if (sessionVersion === accountSessionVersion) {
+          set({
+            demoTokenBudget: get().demoTokenBudget || getCachedAccountBudgetSnapshot(accountId),
+            demoTokenBudgetStatus: 'error',
+          })
+        }
+      })
   },
 
   setDemoUploads: (demoUploads) => set({ demoUploads }),
@@ -75,8 +140,9 @@ export const useChatStore = create((set, get) => ({
       messages: [...state.messages, userMessage, assistantMessage],
     })),
 
-  applyStreamEvent: (event) =>
+  applyStreamEvent: (event, accountId = get().accountId) =>
     set((state) => {
+      if (state.accountId !== accountId) return state
       const messages = [...state.messages]
       const idx = messages.length - 1
       if (idx < 0) return state
@@ -97,14 +163,14 @@ export const useChatStore = create((set, get) => ({
       }
 
       if (event.type === 'demoUsage') {
-        const budget = applyDemoTokenUsageFromServer(event.demoTokenUsage)
+        const budget = applyAccountTokenUsageFromServer(event.demoTokenUsage, accountId)
         const meta = messages[idx]?.meta
         void persistUsageFromChat({
           demoTokenUsage: event.demoTokenUsage,
           traceId: meta?.traceId,
           model: meta?.chatModel,
         })
-        return { messages, demoTokenBudget: budget }
+        return { messages, demoTokenBudget: budget, demoTokenBudgetStatus: 'ready' }
       }
 
       if (event.type === 'sources') {
@@ -112,10 +178,9 @@ export const useChatStore = create((set, get) => ({
       }
 
       if (event.type === 'token') {
-        messages[idx] = {
-          ...messages[idx],
-          content: (messages[idx].content || '') + event.token,
-        }
+        messages[idx] = applyChatStreamEvent(messages[idx], event)
+      } else if (event.type === 'replace') {
+        messages[idx] = applyChatStreamEvent(messages[idx], event)
       }
 
       return { messages }
@@ -127,10 +192,21 @@ export const useChatStore = create((set, get) => ({
 
   submitQuestion: async (text) => {
     const trimmed = text.trim()
-    const { status, appendTurn, applyStreamEvent, setQuestion, setStatus, setError, clearError, chatModel } =
+    const {
+      status,
+      accountId,
+      appendTurn,
+      applyStreamEvent,
+      setQuestion,
+      setStatus,
+      setError,
+      clearError,
+      chatModel,
+    } =
       get()
 
-    if (!trimmed || status === 'streaming') return
+    if (!trimmed || status === 'streaming' || !accountId) return
+    const requestSessionVersion = accountSessionVersion
 
     const budget = get().demoTokenBudget
     if (budget?.exceeded) {
@@ -150,6 +226,11 @@ export const useChatStore = create((set, get) => ({
     clearError()
 
     const controller = new AbortController()
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, CHAT_TIMEOUT_MS)
     set({ abortController: controller })
 
     try {
@@ -157,12 +238,17 @@ export const useChatStore = create((set, get) => ({
         question: trimmed,
         history,
         model: chatModel,
-        demoDocuments: getDemoDocumentsForChat(),
+        demoDocuments: getDemoDocumentsForChat(accountId),
+        accountId,
         signal: controller.signal,
-        onEvent: applyStreamEvent,
+        onEvent: (event) => applyStreamEvent(event, accountId),
       })
+      if (requestSessionVersion !== accountSessionVersion || get().accountId !== accountId) return
       if (result?.demoTokenUsage) {
-        set({ demoTokenBudget: applyDemoTokenUsageFromServer(result.demoTokenUsage) })
+        set({
+          demoTokenBudget: applyAccountTokenUsageFromServer(result.demoTokenUsage, accountId),
+          demoTokenBudgetStatus: 'ready',
+        })
         const last = get().messages.at(-1)
         await persistUsageFromChat({
           demoTokenUsage: result.demoTokenUsage,
@@ -172,14 +258,40 @@ export const useChatStore = create((set, get) => ({
       }
       setStatus('idle')
     } catch (err) {
-      if (err.name === 'AbortError') {
+      if (
+        requestSessionVersion !== accountSessionVersion ||
+        get().accountId !== accountId ||
+        get().abortController !== controller
+      )
+        return
+      const message = timedOut
+        ? 'This response is taking too long. Please try again.'
+        : err.name === 'AbortError'
+          ? 'Response stopped. You can ask again.'
+          : 'Chat is temporarily unavailable. Please try again.'
+
+      set((state) => {
+        const messages = [...state.messages]
+        const lastIndex = messages.length - 1
+        if (lastIndex >= 0 && messages[lastIndex].role === 'assistant') {
+          const content = messages[lastIndex].content
+          messages[lastIndex] = {
+            ...messages[lastIndex],
+            content: content ? `${content}\n\n${message}` : message,
+          }
+        }
+        return { messages }
+      })
+
+      if (err.name === 'AbortError' && !timedOut) {
         setStatus('stopped')
         return
       }
-      setError(err.message)
+      setError('')
       setStatus('error')
     } finally {
-      set({ abortController: null })
+      clearTimeout(timeout)
+      if (get().abortController === controller) set({ abortController: null })
     }
   },
 }))

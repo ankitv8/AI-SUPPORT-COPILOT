@@ -14,8 +14,7 @@ dist/
 *.tsbuildinfo
 
 # Environment (keep .env.example for setup docs)
-.env
-.env*.local
+.env*
 !.env.example
 
 # Logs

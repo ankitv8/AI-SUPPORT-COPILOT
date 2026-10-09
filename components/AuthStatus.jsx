@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useChatStore } from '../stores/chatStore'
 
 export default function AuthStatus({ compact = false, redirectWhenUnauthenticated = false }) {
+  const clearAccountSession = useChatStore((store) => store.clearAccountSession)
   const [state, setState] = useState({ loading: true, configured: false, user: null })
   const [open, setOpen] = useState(false)
 
@@ -11,25 +13,40 @@ export default function AuthStatus({ compact = false, redirectWhenUnauthenticate
     let active = true
     fetch('/api/auth/me', { credentials: 'include' })
       .then(async (response) => {
+        if (!response.ok) throw new Error('Account service unavailable')
         const payload = await response.json()
         if (!active) return
-        setState({ loading: false, configured: payload.configured === true, user: payload.user || null })
-        if (payload.configured && !payload.user && redirectWhenUnauthenticated) {
+        setState({
+          loading: false,
+          configured: payload.configured === true,
+          user: payload.user || null,
+          unavailable: false,
+        })
+        if (!payload.user && redirectWhenUnauthenticated) {
           window.location.replace('/login?next=/chat')
         }
       })
       .catch(() => {
-        if (active) setState({ loading: false, configured: false, user: null })
+        if (active) {
+          setState({ loading: false, configured: true, user: null, unavailable: true })
+        }
       })
 
     return () => {
       active = false
     }
-  }, [])
+  }, [redirectWhenUnauthenticated])
 
   async function logout() {
-    await fetch('/api/auth/me', { method: 'DELETE', credentials: 'include' })
-    window.location.replace('/login')
+    clearAccountSession()
+    try {
+      const response = await fetch('/api/auth/me', { method: 'DELETE', credentials: 'include' })
+      if (!response.ok) console.error('[auth] logout request failed', response.status)
+    } catch (error) {
+      console.error('[auth] logout request failed', error)
+    } finally {
+      window.location.replace('/login')
+    }
   }
 
   if (state.loading) {
@@ -37,15 +54,40 @@ export default function AuthStatus({ compact = false, redirectWhenUnauthenticate
   }
 
   if (!state.configured) {
-    if (compact) return null
+    if (compact) {
+      return (
+        <Link
+          href="/login"
+          className="rounded-lg bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-dark"
+        >
+          Sign in
+        </Link>
+      )
+    }
     return (
-      <span className="mb-3 inline-flex w-fit rounded-full bg-brand/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-brand">
-        Free trial · No account required
-      </span>
+      <p className="mb-3 text-[10px] text-amber-700 dark:text-amber-400">
+        Account access is unavailable. Configure the database connection.
+      </p>
     )
   }
 
+  if (state.unavailable) {
+    return compact
+      ? <p className="text-[10px] text-amber-600 dark:text-amber-400">Account service unavailable</p>
+      : <p className="mb-3 text-[10px] text-amber-700 dark:text-amber-400">Could not verify your account. Check the database connection and retry.</p>
+  }
+
   if (compact) {
+    if (!state.user) {
+      return (
+        <Link
+          href="/login"
+          className="rounded-lg bg-brand px-3 py-2 text-xs font-medium text-white hover:bg-brand-dark"
+        >
+          Sign in
+        </Link>
+      )
+    }
     const initial = state.user?.email?.[0]?.toUpperCase() || '?'
     return (
       <div className="relative">

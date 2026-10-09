@@ -58,7 +58,7 @@ export default function PartnershipCard() {
                 ))}
               </ul>
               <p className="mt-6 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-                Hybrid RAG, cited answers, streaming chat, and deployment support — scoped to your product and
+                Hybrid RAG, cited answers, chat responses, and deployment support — scoped to your product and
                 timeline.
               </p>
             </div>
