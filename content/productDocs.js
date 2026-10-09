@@ -79,7 +79,7 @@ export const productDocs = {
         detail: 'Extracts text from a PDF upload. Stateless — file content is not stored on the server.',
       },
     ],
-    envNote: 'Server env: GROQ_API_KEY, GROQ_CHAT_MODEL, WEAVIATE_URL, WEAVIATE_API_KEY, USD_TO_INR.',
+    envNote: 'Server env: GROQ_API_KEY, DATABASE_URL, WEAVIATE_URL; WEAVIATE_API_KEY when required by the endpoint.',
   },
 
   faq: [

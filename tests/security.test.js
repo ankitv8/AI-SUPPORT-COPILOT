@@ -8,12 +8,18 @@ import { GET as getHealth } from '../app/api/health/route.js'
 import { publicSources } from '../lib/ai/prompt.js'
 import { applyChatStreamEvent, askCopilot } from '../lib/chat/chatClient.js'
 import { getAgentTools, runToolCall } from '../platform/tools.js'
-import { hasLocalChunks } from '../lib/demo/demoRetrieval.js'
 import { createDemoUsagePayload, normalizeTokenUsage } from '../lib/demo/tokenBudget.js'
+import { assertCompleteEmbeddings } from '../lib/demo/demoRetrieval.js'
 import { getUserTokenBudget } from '../lib/core/tokenBudgetConfig.js'
 import { requireAuthenticatedUser } from '../lib/core/auth.js'
-import { createAdvisoryLockManager, createRetryableTask } from '../lib/core/db.js'
+import {
+  createAdvisoryLockManager,
+  createRetryableTask,
+  getDatabaseConnectionString,
+  isDatabaseConnectionError,
+} from '../lib/core/db.js'
 import { clearDemoDocuments } from '../lib/demo/demoBrowserStore.js'
+import { checkWeaviateReadiness } from '../lib/rag/weaviate.js'
 import { POST as postChat } from '../app/api/chat/route.js'
 import {
   applyAccountTokenUsageFromServer,
@@ -125,6 +131,26 @@ test('health endpoint reports Weaviate readiness without exposing settings', asy
   }
 })
 
+test('reports Weaviate as unavailable when persistent storage is not configured', async () => {
+  const originalUrl = process.env.WEAVIATE_URL
+  delete process.env.WEAVIATE_URL
+  try {
+    assert.equal(await checkWeaviateReadiness(), false)
+  } finally {
+    if (originalUrl !== undefined) process.env.WEAVIATE_URL = originalUrl
+  }
+})
+
+test('rejects uploads unless every chunk has a valid embedding', () => {
+  const chunks = [{ id: 'chunk-1', embedding: Array(384).fill(0.25) }]
+  assert.deepEqual(assertCompleteEmbeddings(chunks), chunks)
+  assert.throws(() => assertCompleteEmbeddings([]), /valid embedding for every document chunk/)
+  assert.throws(
+    () => assertCompleteEmbeddings([{ id: 'chunk-1', embedding: [0.1] }]),
+    /valid embedding for every document chunk/,
+  )
+})
+
 test('keeps relevant details from multiple files when ranking across sources', () => {
   const chunks = [
     { id: 'alpha:chunk:2', sourceId: 'alpha', score: 0.8 },
@@ -175,12 +201,6 @@ test('retrieves text-only chunks with BM25 when embeddings are unavailable', asy
 
   assert.equal(results[0].id, 'account:1')
   assert.equal(results[0].retrievalMode, 'bm25')
-})
-
-test('only treats documents with embedded chunks as locally persisted', () => {
-  assert.equal(hasLocalChunks([{ embeddedChunks: [] }]), false)
-  assert.equal(hasLocalChunks([{ embeddedChunks: [{ id: 'chunk-1' }] }]), true)
-  assert.equal(hasLocalChunks([{ embeddedChunks: [] }, { embeddedChunks: [{ id: 'chunk-2' }] }]), true)
 })
 
 test('normalizes and totals account token usage in the shared budget module', () => {
@@ -331,6 +351,26 @@ test('retries schema initialization after a transient database failure', async (
   assert.equal(await initialize(), 'ready')
   assert.equal(await initialize(), 'ready')
   assert.equal(attempts, 2)
+})
+
+test('prefers the pooled PostgreSQL URL and recognizes nested connection failures', () => {
+  const originalDatabaseUrl = process.env.DATABASE_URL
+  const originalPooledUrl = process.env.DATABASE_POSTGRES_PRISMA_URL
+  process.env.DATABASE_URL = 'postgres://direct.example/db'
+  process.env.DATABASE_POSTGRES_PRISMA_URL = 'postgres://pooled.example/db'
+  try {
+    assert.equal(getDatabaseConnectionString(), 'postgres://pooled.example/db')
+    assert.equal(
+      isDatabaseConnectionError(new AggregateError([Object.assign(new Error('timeout'), { code: 'ETIMEDOUT' })])),
+      true,
+    )
+    assert.equal(isDatabaseConnectionError(new Error('application error')), false)
+  } finally {
+    if (originalDatabaseUrl === undefined) delete process.env.DATABASE_URL
+    else process.env.DATABASE_URL = originalDatabaseUrl
+    if (originalPooledUrl === undefined) delete process.env.DATABASE_POSTGRES_PRISMA_URL
+    else process.env.DATABASE_POSTGRES_PRISMA_URL = originalPooledUrl
+  }
 })
 
 test('caches the last successful account budget and retries temporary failures', async () => {

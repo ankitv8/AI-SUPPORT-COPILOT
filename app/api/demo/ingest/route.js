@@ -1,4 +1,4 @@
-import { embedDemoDocument } from '../../../../lib/demo/demoRetrieval.js'
+import { assertCompleteEmbeddings, embedDemoDocument } from '../../../../lib/demo/demoRetrieval.js'
 import { deleteWeaviateSource, isWeaviateConfigured, upsertWeaviateChunks } from '../../../../lib/rag/weaviate.js'
 import { requireAuthenticatedUser } from '../../../../lib/core/auth.js'
 import { createOwnedDocument, deleteOwnedDocument, DEFAULT_TENANT_ID } from '../../../../lib/core/documents.js'
@@ -35,6 +35,12 @@ export async function POST(request) {
     if (response) return response
     const budgetLimit = await checkApiTokenBudget(user)
     if (budgetLimit) return budgetLimit
+    if (!isWeaviateConfigured()) {
+      return Response.json(
+        { error: 'Persistent vector storage is not configured. Set WEAVIATE_URL before uploading files.' },
+        { status: 503 },
+      )
+    }
 
     const document = await request.json()
     if (!document?.id || !document?.text) {
@@ -47,41 +53,37 @@ export async function POST(request) {
       text: String(document.text).trim(),
     }, { userId: user.id })
 
-    const vectorChunks = chunks.filter((chunk) => Array.isArray(chunk.embedding))
-    await createOwnedDocument({
-      id: String(document.id),
+    const vectorChunks = assertCompleteEmbeddings(chunks)
+    const source = {
+      tenantId: DEFAULT_TENANT_ID,
       userId: user.id,
-      title: String(document.title || document.filename || 'Document'),
-      filename: String(document.filename || 'upload.txt'),
-      sizeBytes: Number(document.sizeBytes || 0),
-    })
-    if (isWeaviateConfigured()) {
-      let persistent = vectorChunks.length === chunks.length
-      if (vectorChunks.length) {
-        try {
-          await upsertWeaviateChunks(vectorChunks)
-        } catch (error) {
-          persistent = false
-          const reason = error instanceof Error ? error.message : 'Unknown Weaviate error'
-          console.warn(`[document-ingest] Weaviate unavailable; retaining local document vectors: ${reason}`)
-        }
-      }
-      return Response.json({
-        ok: true,
-        persistent,
-        chunkCount: chunks.length,
-        ...(!persistent
-          ? { embeddedChunks: vectorChunks.map(({ id, embedding }) => ({ id, embedding })) }
-          : {}),
-      })
+      sourceId: String(document.id),
     }
 
-    return Response.json({
-      ok: true,
-      persistent: false,
-      chunkCount: chunks.length,
-      embeddedChunks: vectorChunks.map(({ id, embedding }) => ({ id, embedding })),
-    })
+    try {
+      await upsertWeaviateChunks(vectorChunks)
+      await createOwnedDocument({
+        id: String(document.id),
+        userId: user.id,
+        title: String(document.title || document.filename || 'Document'),
+        filename: String(document.filename || 'upload.txt'),
+        sizeBytes: Number(document.sizeBytes || 0),
+      })
+    } catch (error) {
+      try {
+        await deleteWeaviateSource(source)
+      } catch (cleanupError) {
+        console.error('[document-ingest] failed to roll back partially stored vectors', cleanupError)
+      }
+      try {
+        await deleteOwnedDocument({ id: String(document.id), userId: user.id })
+      } catch (cleanupError) {
+        console.error('[document-ingest] failed to roll back document ownership metadata', cleanupError)
+      }
+      throw error
+    }
+
+    return Response.json({ ok: true, persistent: true, chunkCount: vectorChunks.length })
   } catch (error) {
     console.error('[document-ingest] failed', error)
     return Response.json({ error: "Couldn't process this file, please try again." }, { status: 500 })

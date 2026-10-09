@@ -16,7 +16,7 @@ export const modelPricingMeta = {
 export const envVarRows = [
   { variable: 'GROQ_API_KEY', default: '—', description: 'Required — Groq API authentication' },
   { variable: 'GROQ_CHAT_MODEL', default: 'openai/gpt-oss-120b', description: 'Chat and planning' },
-  { variable: 'WEAVIATE_URL', default: '—', description: 'Optional — persistent vector storage' },
+  { variable: 'WEAVIATE_URL', default: '—', description: 'Required — persistent document text and vector storage' },
   { variable: 'WEAVIATE_API_KEY', default: '—', description: 'Optional — Weaviate authentication' },
   { variable: 'USD_TO_INR', default: String(DEFAULT_USD_TO_INR), description: 'INR conversion in Usage dashboard' },
 ]
