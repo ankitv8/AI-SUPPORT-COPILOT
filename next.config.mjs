@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['@huggingface/transformers', 'onnxruntime-node', 'sharp'],
+  serverExternalPackages: ['@huggingface/transformers', 'onnxruntime-node', 'sharp', 'pdf-parse'],
   outputFileTracingIncludes: {
+    '/api/demo/parse': ['./node_modules/pdf-parse/**/*'],
     '/api/demo/ingest': [
       './node_modules/sharp/**/*',
       './node_modules/@img/**/*',
